@@ -65,7 +65,7 @@ class Board {
 		card.innerHTML = `
         <div class="card-content">${text}</div>
         <button class="delete-card">×</button>
-      `;		
+      `;
 
 		const deleteBtn = card.querySelector('.delete-card');
 		deleteBtn.addEventListener('click', () => {
@@ -93,9 +93,7 @@ class Board {
 	saveState() {
 		const state = this.columns.map((_, index) => {
 			const cards = Array.from(this.container.querySelectorAll(`.cards[data-column="${index}"] .card`));
-			return cards.map(card => {				
-				return card.querySelector('.card-content').textContent.trim();
-			});
+			return cards.map(card => card.querySelector('.card-content').textContent.trim());
 		});
 		localStorage.setItem('boardState', JSON.stringify(state));
 	}
@@ -111,90 +109,75 @@ class Board {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-
 	const boardContainer = document.querySelector('.board');
 	const board = new Board(boardContainer);
 	board.loadState();
 
-	boardContainer.addEventListener('dragover', (e) => {
-		e.preventDefault();
-		const draggable = document.querySelector('.dragging');
-		if (!draggable) return;
-		
-		const targetColumn = Array.from(boardContainer.querySelectorAll('.column'))
-			.find(column => {
-				const rect = column.getBoundingClientRect();
-				return e.clientX >= rect.left &&
-					e.clientX <= rect.right &&
-					e.clientY >= rect.top &&
-					e.clientY <= rect.bottom;
-			});
+	let placeholder = document.createElement('div');
+	placeholder.className = 'placeholder';
 
-		document.querySelectorAll('.column').forEach(column => {
-			column.classList.remove('drop-target');
-		});
-		if (targetColumn) {
-			targetColumn.classList.add('drop-target');
-		}
+	boardContainer.addEventListener('dragstart', (e) => {
+		const card = e.target.closest('.card');
+		if (!card) return;
+
+		placeholder.style.height = `${card.offsetHeight}px`;
+		card.classList.add('dragging');
+		e.dataTransfer.setData('text/plain', JSON.stringify({
+			sourceColumn: [...boardContainer.children].indexOf(card.closest('.column')),
+			cardHtml: card.outerHTML
+		}));
 	});
 
-	boardContainer.addEventListener('drop', (e) => {
+	boardContainer.addEventListener('dragover', (e) => {
 		e.preventDefault();
-		const draggable = document.querySelector('.dragging');
-		if (!draggable) return;
+		const card = document.querySelector('.dragging');
+		if (!card) return;
 
-		const data = JSON.parse(e.dataTransfer.getData('text/plain'));
-		draggable.remove();
-		
-		const tempDiv = document.createElement('div');
-		tempDiv.innerHTML = data.cardHtml;
-		const newCard = tempDiv.firstElementChild;
-		newCard.className = 'card';
-		newCard.draggable = true;
-
-		const targetColumn = Array.from(boardContainer.querySelectorAll('.column'))
-			.find(column => {
-				const rect = column.getBoundingClientRect();
-				return e.clientX >= rect.left &&
-					e.clientX <= rect.right &&
-					e.clientY >= rect.top &&
-					e.clientY <= rect.bottom;
-			});
-
+		const targetColumn = e.target.closest('.column');
 		if (!targetColumn) return;
 
 		const cardsContainer = targetColumn.querySelector('.cards');
 		const afterElement = getDragAfterElement(cardsContainer, e.clientY);
 
 		if (afterElement) {
-			cardsContainer.insertBefore(newCard, afterElement);
+			afterElement.before(placeholder);
 		} else {
-			cardsContainer.appendChild(newCard);
+			cardsContainer.appendChild(placeholder);
 		}
-		
-		newCard.querySelector('.delete-card').addEventListener('click', () => {
-			newCard.remove();
+	});
+
+	boardContainer.addEventListener('drop', (e) => {
+		e.preventDefault();
+		const draggingCard = document.querySelector('.dragging');
+		if (!draggingCard) return;
+
+		draggingCard.remove();
+		const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+		const newCard = document.createElement('div');
+		newCard.innerHTML = data.cardHtml;
+		const cardElement = newCard.firstElementChild;
+		cardElement.className = 'card';
+		cardElement.draggable = true;
+
+		placeholder.replaceWith(cardElement);
+
+		cardElement.querySelector('.delete-card').addEventListener('click', () => {
+			cardElement.remove();
 			board.saveState();
 		});
-		
-		newCard.addEventListener('dragstart', (e) => {
-			const columnIndex = Array.from(boardContainer.children)
-				.indexOf(targetColumn);
 
+		cardElement.addEventListener('dragstart', (e) => {
 			e.dataTransfer.setData('text/plain', JSON.stringify({
-				sourceColumn: columnIndex,
-				cardHtml: newCard.outerHTML
+				sourceColumn: [...boardContainer.children].indexOf(cardElement.closest('.column')),
+				cardHtml: cardElement.outerHTML
 			}));
-			newCard.classList.add('dragging');
+			cardElement.classList.add('dragging');
 		});
 
 		board.saveState();
-		newCard.classList.remove('dragging');
-		document.querySelectorAll('.column').forEach(c =>
-			c.classList.remove('drop-target')
-		);
+		cardElement.classList.remove('dragging');
 	});
-	
+
 	function getDragAfterElement(container, y) {
 		if (!container) return null;
 		const draggableElements = [...container.querySelectorAll('.card:not(.dragging)')];
@@ -213,15 +196,15 @@ document.addEventListener('DOMContentLoaded', () => {
 		}, {
 			offset: Number.NEGATIVE_INFINITY
 		}).element;
-	};
-})
+	}
+});
 
 // comment this to pass build
 const unusedVariable = "variable";
 
 // for demonstration purpose only
 export default function demo(value) {
-  return `Demo: ${value}`;
+	return `Demo: ${value}`;
 }
 
 console.log("app.js included");
